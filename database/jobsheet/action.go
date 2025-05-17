@@ -255,13 +255,20 @@ func Search(condition *dto.RestSearchConditionJobSheet) ([]model.JobSheet, error
 		ExpressionAttributeValues: expr.Values(),
 		FilterExpression:          expr.Filter(),
 	}
-	response, err := client.Scan(context.TODO(), input)
-	if err != nil {
-		return nil, err
-	}
-	err = attributevalue.UnmarshalListOfMaps(response.Items, &jobSheetList)
-	if err != nil {
-		return nil, err
+
+	// 1回のScanで1MBまでしか取得できないので、分割して取得する
+	scanPaginator := dynamodb.NewScanPaginator(client, input)
+	for scanPaginator.HasMorePages() {
+		response, err := scanPaginator.NextPage(context.TODO())
+		if err != nil {
+			return nil, err
+		}
+		var jobSheetPage []model.JobSheet
+		err = attributevalue.UnmarshalListOfMaps(response.Items, &jobSheetPage)
+		if err != nil {
+			return nil, err
+		}
+		jobSheetList = append(jobSheetList, jobSheetPage...)
 	}
 
 	return jobSheetList, nil
