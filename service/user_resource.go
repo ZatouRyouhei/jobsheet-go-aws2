@@ -7,6 +7,7 @@ import (
 	"jobsheet-go-aws2/database/model"
 	"jobsheet-go-aws2/database/user"
 	"jobsheet-go-aws2/dto"
+	jobsheetjwt "jobsheet-go-aws2/jwt"
 	"jobsheet-go-aws2/random"
 
 	"encoding/hex"
@@ -14,9 +15,6 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
-	"time"
-
-	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/labstack/echo/v4"
 )
@@ -35,10 +33,7 @@ func Login(c echo.Context) error {
 	}
 
 	// JWT生成
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 72)),
-	})
-	t, err := token.SignedString([]byte("secret"))
+	t, err := jobsheetjwt.CreateToken(targetUser)
 	if err != nil {
 		slog.Error("Error", slog.Any("error", err))
 		return c.String(http.StatusBadRequest, err.Error())
@@ -56,6 +51,10 @@ func Login(c echo.Context) error {
 }
 
 func GetUserList(c echo.Context) error {
+	// JWTからユーザ情報を取得する。
+	userInfo := jobsheetjwt.GetUserInfo(c)
+	slog.Info("Info", slog.Any("Name", "ユーザID"+userInfo.Id))
+
 	userList, err := user.Scan()
 	if err != nil {
 		slog.Error("Error", slog.Any("error", err))

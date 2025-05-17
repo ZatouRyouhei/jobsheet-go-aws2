@@ -2,26 +2,31 @@ package main
 
 import (
 	"jobsheet-go-aws2/constant"
+	jobsheetjwt "jobsheet-go-aws2/jwt"
 	"jobsheet-go-aws2/service"
 
-	//echojwt "github.com/labstack/echo-jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
+	echojwt "github.com/labstack/echo-jwt/v4"
 
 	"github.com/labstack/echo/v4"
 )
 
 func SetRoute(e *echo.Echo) {
 	// JWT設定
-	// e.Use(echojwt.WithConfig(echojwt.Config{
-	// 	SigningKey: []byte("secret"),
-	// 	// ログイン処理だけJWT認証から除外する。
-	// 	Skipper: func(c echo.Context) bool {
-	// 		if c.Request().URL.Path == constant.BASE_URL+"/user/login/" {
-	// 			return true
-	// 		} else {
-	// 			return false
-	// 		}
-	// 	},
-	// }))
+	e.Use(echojwt.WithConfig(echojwt.Config{
+		SigningKey: []byte("secret"),
+		// ログイン処理だけJWT認証から除外する。
+		Skipper: func(c echo.Context) bool {
+			if c.Request().URL.Path == constant.BASE_URL+"/user/login/" {
+				return true
+			} else {
+				return false
+			}
+		},
+		NewClaimsFunc: func(c echo.Context) jwt.Claims {
+			return new(jobsheetjwt.JwtCustomClaims)
+		},
+	}))
 
 	e.POST(constant.BASE_URL+"/user/login/", service.Login)
 	e.GET(constant.BASE_URL+"/user/getList/", service.GetUserList)
