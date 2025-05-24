@@ -196,9 +196,11 @@ func Search(condition *dto.RestSearchConditionJobSheet) ([]model.JobSheet, error
 		if err != nil {
 			return nil, err
 		}
+		businessFilterEx := expression.Name("id").Equal(expression.Value(0)) // 必ずfalseになる条件
 		for _, businessSystem := range businessSystemList {
-			filterEx.And(expression.Name("business_system_id").Equal(expression.Value(businessSystem.ID)))
+			businessFilterEx = businessFilterEx.Or(expression.Name("business_system_id").Equal(expression.Value(businessSystem.ID)))
 		}
+		filterEx = filterEx.And(businessFilterEx)
 	}
 	if condition.BusinessSystem != 0 {
 		filterEx = filterEx.And(expression.Name("business_system_id").Equal(expression.Value(condition.BusinessSystem)))
@@ -232,11 +234,11 @@ func Search(condition *dto.RestSearchConditionJobSheet) ([]model.JobSheet, error
 		keywordArr := regexp.MustCompile(reg).Split(condition.Keyword, -1)
 		keywordFilter := expression.Name("id").Equal(expression.Value(0)) // 必ずfalseになる条件
 		for _, keyword := range keywordArr {
-			keywordFilter = keywordFilter.Or(expression.Name("title").Contains(expression.Value(keyword)))
-			keywordFilter = keywordFilter.Or(expression.Name("content").Contains(expression.Value(keyword)))
-			keywordFilter = keywordFilter.Or(expression.Name("support").Contains(expression.Value(keyword)))
-			keywordFilter = keywordFilter.Or(expression.Name("department").Contains(expression.Value(keyword)))
-			keywordFilter = keywordFilter.Or(expression.Name("person").Contains(expression.Value(keyword)))
+			keywordFilter = keywordFilter.Or(expression.Contains(expression.Name("title"), keyword))
+			keywordFilter = keywordFilter.Or(expression.Contains(expression.Name("content"), keyword))
+			keywordFilter = keywordFilter.Or(expression.Contains(expression.Name("support"), keyword))
+			keywordFilter = keywordFilter.Or(expression.Contains(expression.Name("department"), keyword))
+			keywordFilter = keywordFilter.Or(expression.Contains(expression.Name("person"), keyword))
 		}
 		filterEx = filterEx.And(keywordFilter)
 	}
