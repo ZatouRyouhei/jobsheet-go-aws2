@@ -93,3 +93,48 @@ func BatchWriteItem(holidays []model.Holiday) (int, error) {
 	}
 	return written, err
 }
+
+func ClearTable() error {
+	cfg, err := config.LoadDefaultConfig(context.TODO())
+	if err != nil {
+		return err
+	}
+	client := dynamodb.NewFromConfig(cfg)
+	holidayList, err := Scan()
+	if err != nil {
+		return err
+	}
+	var writeReqs []types.WriteRequest
+	for _, holiday := range holidayList {
+		writeReqs = append(writeReqs, types.WriteRequest{
+			DeleteRequest: &types.DeleteRequest{
+				Key: map[string]types.AttributeValue{
+					"holiday": &types.AttributeValueMemberS{Value: holiday.Holiday},
+				},
+			},
+		})
+
+		if len(writeReqs) == 25 {
+			_, err = client.BatchWriteItem(context.TODO(), &dynamodb.BatchWriteItemInput{
+				RequestItems: map[string][]types.WriteRequest{
+					"t_holiday": writeReqs,
+				},
+			})
+			if err != nil {
+				return err
+			}
+			writeReqs = []types.WriteRequest{}
+		}
+	}
+	if len(writeReqs) > 0 {
+		_, err = client.BatchWriteItem(context.TODO(), &dynamodb.BatchWriteItemInput{
+			RequestItems: map[string][]types.WriteRequest{
+				"t_holiday": writeReqs,
+			},
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}

@@ -2,16 +2,19 @@ package service
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
+	"io"
 	"jobsheet-go-aws2/database/holiday"
+
 	"jobsheet-go-aws2/database/model"
 	"jobsheet-go-aws2/dto"
 	"log/slog"
 	"net/http"
 	"sort"
+
 	"strconv"
 	"strings"
-	"unicode/utf8"
 
 	"golang.org/x/text/encoding/japanese"
 	"golang.org/x/text/transform"
@@ -40,8 +43,15 @@ func GetHolidayList(c echo.Context) error {
 }
 
 func RegistHoliday(c echo.Context) error {
+	// テーブルをクリアする。
+	err := holiday.ClearTable()
+	if err != nil {
+		slog.Error("Error", slog.Any("error", err))
+		return c.String(http.StatusBadRequest, err.Error())
+	}
+
 	// ファイルは内閣府のホームページに公開されているCSVファイルの想定
-	// 文字コードはSJIS
+	// 文字コードはUTF8（元ファイルはSJISだがUTF8に変換したうえで取り込む）
 	// ヘッダーあり
 	// ダブルクォーテーションなし
 	form, err := c.FormFile("file")
@@ -56,9 +66,11 @@ func RegistHoliday(c echo.Context) error {
 	}
 	defer src.Close()
 
-	// SJISの文字コードとして読み込む
-	reader := transform.NewReader(src, japanese.ShiftJIS.NewDecoder())
-	s := bufio.NewScanner(reader)
+	// SJISの文字コードとして読み込む（SJISの変換がうまくいかない）
+	// reader := transform.NewReader(src, japanese.ShiftJIS.NewDecoder())
+	// s := bufio.NewScanner(reader)
+	// UTF8として読み込む
+	s := bufio.NewScanner(src)
 
 	// エラーリスト
 	errorList := []dto.RestErrorMessage{}
@@ -82,11 +94,6 @@ func RegistHoliday(c echo.Context) error {
 		holidayArr := strings.Split(result[0], "/")
 		holiday := holidayArr[0] + "-" + fmt.Sprintf("%0*s", 2, holidayArr[1]) + "-" + fmt.Sprintf("%0*s", 2, holidayArr[2])
 		name := result[1]
-		if utf8.RuneCountInString(name) > 20 {
-			errorList = append(errorList, dto.RestErrorMessage{LineNo: rowNum, ErrorMsg: "祝日名称エラー（祝日名称は20文字以内としてください。）"})
-			rowNum += 1
-			continue
-		}
 		holidays = append(holidays, model.Holiday{
 			Holiday: holiday,
 			Name:    name,
@@ -109,4 +116,14 @@ func RegistHoliday(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, errorList)
+}
+
+// SJISからUTF-8に変換する関数
+func convertSJISToUTF8(input string) (string, error) {
+	reader := transform.NewReader(bytes.NewReader([]byte(input)), japanese.ShiftJIS.NewDecoder())
+	decoded, err := io.ReadAll(reader)
+	if err != nil {
+		return "", err
+	}
+	return string(decoded), nil
 }
